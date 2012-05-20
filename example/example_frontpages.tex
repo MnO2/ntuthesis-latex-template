@@ -1,0 +1,50 @@
+\NTUtitlepage  % 產生論文封面
+
+\newpage
+\setcounter{page}{1}
+\pagenumbering{roman}
+
+\NTUoralpage  % 產生口試委員會審定書
+
+\mydoublespacing
+%\begin{acknowledgement} %誌謝
+   %請在這裡寫您的誌謝辭 
+%\end{acknowledgement}
+
+\begin{zhAbstract}  %中文摘要
+  語音辨識(Speech Recognition)問題可視為針對一段語音訊號求出所對應的詞串。
+  這個問題由於結構十分複雜，
+  所以在傳統上，
+  我們都是將問題用貝氏定理(Bayes Theorem)拆解成聲學模型(Acoustic Model)與語言模型(Language Model)兩個子問題，
+  這兩個子問題結構比較單純，
+  方便我們用隱藏式馬可夫模型(Hidden Markov Model)來解決。
+
+  但隱藏式馬可夫模型估測參數的時候傳統上使用最大相似度估測法(Maximum Likelihood Estimation)，
+  容易在不同模型之間造成混淆。
+  乃有人提出鑑別式訓練法(Discriminative Training)，
+  讓傳統的模型架構也具備鑑別力。
+
+  隨著機器學習領域的發展，
+  我們逐漸有能力直接解決語音辨識的問題而未必需要將它拆成兩個子問題，
+  而這樣的模型多半天生就具備鑑別能力。
+  本論文便嘗試在這樣的架構下先進行初步的音素辨識。
+  論文中使用的模型為結構化支持向量機(Structural Support Vector Machine)。
+  實驗顯示，
+  所獲得之音素正確率(Phone Accuracy)會超過串接式系統(Tandem System)的1\%。
+
+\end{zhAbstract}
+
+{
+%\zhKaiFont
+\mysinglespacing\selectfont
+\tableofcontents %目錄
+
+\listoffigures  %圖目錄
+
+\listoftables  %表目錄
+\par
+}
+
+\newpage
+\setcounter{page}{1}
+\pagenumbering{arabic}

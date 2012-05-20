@@ -1,0 +1,869 @@
+本章將介紹著名的支撐向量機(Support Vector Machine; SVM)學習演算法，
+這邊的內容主要取材自\cite{VapnikSVM, Burges98tutorial}等論文。
+
+\section{簡介}  
+  當我們在考慮一個使用線性分類器(Linear Classifier)的二元分類問題(Binary Classification Problem)時
+  (如圖\ref{fig:svm_intro_example})，
+  我們很自然地會認為圖中的B點比起圖中的C點分對的機會要高，
+  因為B點離分隔線(Seperating Line)的幾何距離(Geometric Distance)比起C點要來得大。
+  同樣地，
+  我們對A點分對的信心也比B點來得高。
+  \begin{figure}  
+    \begin{center}
+      \begin{tikzpicture}[scale=1.5]
+	  % Draw axes
+	  \draw [<->,thick] (0,4) node (yaxis) [above] {$y$}
+	      |- (5,0) node (xaxis) [right] {$x$};
+	  % Draw two intersecting lines
+	  \draw (0.5,4) coordinate (b_1) -- (5,0.5) coordinate (b_2);
+	  % Calculate the intersection of the lines a_1 -- a_2 and b_1 -- b_2
+	  % and store the coordinate in c.
+	  \draw (3.7,4) node {A};
+	  \draw (2.7,2.5) node {C};
+	  \draw (1.7,3.8) node {B};
+	  \fill[red] (2,3.8) circle (2pt);
+	  \fill[red] (3,2.5) circle (2pt);
+	  \fill[red] (4,4) circle (2pt);
+	  \fill[blue] (1,0.6) circle (2pt);
+	  \fill[blue] (4,1) circle (2pt);
+	  \fill[blue] (2,0.4) circle (2pt);
+      \end{tikzpicture}
+    \end{center}
+    \caption{使用線性分類器的二元分類問題} 
+    \label{fig:svm_intro_example}
+  \end{figure}      
+
+  支撐向量機學習演算法(Support Vector Machine; SVM)的靈感即來自於二元分類問題中這「邊距」(Margin)的概念。
+  既然一個點對分隔線的距離決定了我們對他分對的信心，
+  那如果我們可以找到一個分隔線，
+  使得其中一類跟另外一類間的邊距最大，
+  這樣找到的分類線我們便對它最有信心。
+  拿圖\ref{fig:svm_intro_example}中的二維平面範例來看的話，
+  由於一條分隔線的參數是$(w, b)$
+  (分隔線可以寫成$w_1 \cdot x_1 + b = 0$，
+  或者是$\langle w, x \rangle + b$，
+  其中$\langle \cdot, \cdot \rangle$代表內積)，
+  要讓邊距盡量大，
+  就表示我們要決定一組$(w^{*}, b^{*})$，
+  使得每一個紅色點代入$(w^{*}, b^{*})$時$\langle w^{*}, x \rangle + b^{*} \gg 0$，
+  每一個藍色點代入$(w^{*}, b^{*})$時$\langle w^{*}, x \rangle + b^{*} \ll 0$。
+  一旦決定了這組$(w^{*}, b^{*})$，
+  有新的點進來的時候，
+  我們只需要算出$\langle w^{*}, x \rangle + b^{*}$是大於0還是小於0，
+  大於0的話就將它歸為一類、
+  小於0就將它歸為另一類（等於0可以隨便指定一類)。
+  即假設我們用支撐向量機學習演算法學得的函數是$f$，
+  定義
+  \begin{equation}
+    sign(z) = 
+    \left\{ 
+      \begin{array}{l}
+      1 \text{ if } z \geq 0 \\
+      -1 \text{ otherwize } \\
+      \end{array}
+    \right.	
+  \end{equation}
+  則我們得到的分類器便是$sign(f(x))$
+
+  同樣地道理，
+  拓展到$n$維空間的時候，
+  我們希望一個分隔超平面(Seperating Hyperplane)使得邊距最大。
+  由這樣的原則所找到的分類器我們稱作極大邊距分類器(Maximum Margin Classifier)    
+
+\section{原始形式(Primal Form)}
+  在這一個章節我們將進行支撐向量機學習演算法理論的推導。
+  為了讓推導容易理解，
+  我們首先考慮樣本點是能用一個超平面(Hyperplane)完全正確地分隔開來(Seperable Case)的二元分類問題。
+  說明這種情形之後，
+  再推廣到容忍樣本點被分錯及非線性的情形。
+
+  假設給定一組$N$點的訓練樣本集
+  \begin{equation}
+  Z = \lbrace (x_i, y_i) \rbrace_{i=1}^{N}
+  \end{equation}
+  其中$x_i \in \mathbb{R}^n$為特徵向量、$y_i \in \lbrace -1, 1 \rbrace$為標籤。
+  為了符合我們找到讓邊距最大的超平面，
+  好將正確樣本點與不正確樣本點盡可能分離的原則，
+  我們直覺上來寫就是
+  \begin{equation}
+    \max_{w, b} \text{ Thickness}(w, b)
+  \end{equation}
+  其中Thickness為邊距的厚度，其是$w$和$b$的函數，
+  
+  但畢竟這不是數學的語言，
+  我們需要更嚴謹的定義。
+  首先我們定義
+  \begin{equation}
+    \rho_i = \left( \text{ distance of } x_i \text{ to } \langle w, x_i \rangle + b = 0 \right)
+  \end{equation}
+  用高中學過的幾何距離代入就變成下列式子
+  \begin{equation}
+    \rho_i = \left\vert \frac{ \langle w, x_i \rangle + b }{ \Vert w \Vert } \right\vert 
+    = y_i \left( \frac{ \langle w, x_i \rangle + b }{ \Vert w \Vert } \right)
+  \end{equation}    
+  到這邊我們便可以將邊距定義成所有點中到超平面距離最小的幾何距離，
+  寫成數學如下
+  \begin{equation}
+  \text{Thickness}(w, b) = \min_i \rho_i
+  \end{equation}
+  因此，
+  要找到使邊距最厚的超平面，就代表我們要將上述最小的距離極大化。
+  \begin{equation}
+    \begin{split}
+    &\max_{w, b} \min_i \rho_i, \\
+    \text{s.t. } \forall i: &\rho_i = y_i \left( \frac{ \langle w, x_i \rangle + b }{ \Vert w \Vert } \right)
+    \end{split}
+  \end{equation}  
+  但要處理這樣的問題不太容易，
+  所以我們便將問題轉換一下，
+  加入$\Vert w \Vert = 1$的限制，
+  這樣便可以把$\Vert w \Vert$從限制條件的分母中拿掉
+  (注意這邊只是加上$\Vert w \Vert = 1$，距離仍然算是幾何距離而非函數距離(functional distance))。
+  \begin{equation}
+    \begin{split}
+      &\max_{w, b} \min_i \rho_i \\
+      \text{s.t. } \forall i:  &\rho_i = y_n ( \langle w, x_i \rangle + b ), \\
+      &\Vert w \Vert = 1
+    \end{split}
+  \end{equation}    
+  我們定義$\rho = \min_i \rho_i$，
+  由於$\rho$是最小的，所以我們有$\rho_i \geq \rho, \forall i$。
+  則上述問題可以再寫成，
+  \begin{equation}
+    \begin{split}
+      &\max_{w, b} \rho \\
+      \text{s.t. } &\forall i: \rho_i \geq \rho, \\
+      &\Vert w \Vert = 1
+    \end{split}
+  \end{equation}
+  將$\rho_i$用$\langle w, x_i \rangle + b$代入
+  \begin{equation} 
+    \begin{split}
+      &\max_{w, b} \rho \\
+      \text{s.t. } \forall i: &y_i ( \langle w, x_i \rangle + b) \geq \rho, \\
+      &\Vert w \Vert = 1 
+    \end{split}
+  \end{equation}        
+  雖然我們前面將$\Vert w \Vert = 1$加入是為了消掉限制中分母的$\Vert w \Vert$，
+  但基本上$\Vert w \Vert = 1$是個討厭的限制，
+  它讓限制變成非凸的(non-convex)，
+  所以到這邊我們希望再把它拿掉，
+  變成一個好解的形式。
+  於是我們定義$\hat{\rho} = \Vert w \Vert \rho$並代入，
+  則式子變成如下
+  (這相當於把幾何距離的問題轉換成函數距離的問題。注意這邊的$\Vert w \Vert$不再等於1，所以$y_i ( \langle w, x_i \rangle + b)$其實是有擴大，相當於$\Vert w \Vert$倍)
+  \begin{equation}
+    \begin{split}
+      &\max_{w, b: w \neq 0} \frac{\hat{\rho}}{\Vert w \Vert} \\
+      \text{s.t. } \forall i: &y_i ( \langle w, x_i \rangle + b ) \geq \hat{\rho}
+    \end{split}
+  \end{equation}    
+  雖然我們將$\Vert w \Vert = 1$從限制條件中拿掉使得限制不再是非凸的，
+  但現在目標函數(Object Function)變成非凸的。
+  而且解必定有無限多種，
+  因為當一個最佳解$(w^{*}, b^{*})$存在的時候，
+  則對任意$c$，$(cw^{*}, c b^{*})$亦同樣是最佳解。
+
+  不過幸好，這些不等式的兩邊都是可以隨意擴大縮小的，    
+  我們只要加回一個限制，
+  即$\hat{\rho} = 1$，
+  問題就得以解決，
+  變成下列的形式
+  \begin{equation}
+    \begin{split}
+      &\max_{w, b} \frac{\hat{\rho}}{\Vert w \Vert} \\
+      \text{s.t. } \forall i: &y_i ( \langle w, x_i \rangle + b ) \geq \hat{\rho}, \\
+      &\hat{\rho} = 1
+    \end{split}
+  \end{equation}    
+  再整理一下，就變成 
+  \begin{equation}
+    \begin{split}
+      &\max_{w, b} \frac{ 1 }{\Vert w \Vert} \\
+      \text{s.t. } \forall i: &y_i ( \langle w, x_i \rangle + b ) \geq 1
+    \end{split}
+  \end{equation}  
+  由於最大化$\frac{ 1 }{\Vert w \Vert}$等價於最小化$\Vert w \Vert$，
+  但$\Vert w \Vert$這個目標函數並不容易最小化，
+  我們可以用等價的二次式來取代，
+  即$\Vert w \Vert^2$。
+  另外，由於我們做最佳化時會對目標函數微分，
+  也就是二次方會被打下來，所以我們前面多乘一個$\frac{1}{2}$好讓我們的微分式的係數變成1，
+  變成下列式子
+  \begin{equation}
+    \begin{split}
+      &\min_{w, b} \frac{1}{2} \Vert w \Vert^2  \\
+      \text{s.t. } \forall i: &y_i ( \langle w, x_i \rangle + b ) \geq 1
+    \end{split}
+  \end{equation}   
+  這便是一般最常見到的支撐向量機的核心公式，
+  也是支撐向量機演算法的原始形式(Primal Form)。
+  這個問題到這邊已經被我們轉換成由一個凸性的二次目標函數及許多線性的限制條件所構成的最佳化問題。
+  實際上，
+  這是一個二次規劃(Quadratic Programming)的問題，
+  存在有效率的演算法。
+  我們可以直接將上面的問題用任何解二次規劃的程式去解決。  
+  不過，
+  我們並不滿足於此，
+  原始形式並不是支撐向量機演算法真正有威力的形式。
+  我們接下來先介紹拉氏對偶性(Lagrange Duality)，
+  好將原始形式轉換成支撐向量機演算法的對偶形式(Dual Form)。
+  對偶形式允許使用核心映射來高效地處理高維空間。
+
+\section{拉氏對偶性(Lagrange Duality)}
+  首先我們先來回憶一下微積分課程中，
+  教我們如何用拉氏乘數法(Lagrange Multiplier)來解決下面有$l$個限制條件的最佳化問題
+  \begin{equation}
+    \begin{split}
+      &\min_w f(w) \\
+      \text{s.t. } \forall i \in \lbrace 1, &\cdots, k \rbrace: g_i(w) \leq 0, \\
+      \forall j \in \lbrace 1, &\cdots, l \rbrace: h_i(w) = 0
+    \end{split}
+  \end{equation}
+  微積分課本教我們說，
+  首先我們定義拉氏輔助函數(Lagrange Function)為
+  \begin{equation}
+    \mathcal{L}(w, \alpha, \beta) = f(w) + \sum_{i=1}^k \alpha_i g_i(w) + \sum_{i=1}^l \beta_i h_i(w)
+  \end{equation}
+  其中$\alpha_i$和$\beta_i$被稱作拉氏乘數(Lagrange Multiplier)。    
+  接著，	
+  我們取拉氏輔助函數的偏導數為0來得到一組方程
+  \begin{align}
+    \frac{\partial \mathcal{L}}{\partial w_i} = 0 \\
+    \frac{\partial \mathcal{L}}{\partial \beta_i} = 0 \\
+    \frac{\partial \mathcal{L}}{\partial \alpha_i} = 0
+  \end{align}
+  解上面的方程而得到一組或多組駐點(Stationary Point)($w$,$\beta$)。
+  在目標函數非凸的情況下，
+  還要檢查這些駐點究竟是不是極值點。
+
+  在定義對偶形式之前，
+  就像推導二次規劃問題時一樣，
+  我們必須先定義原始形式(Primal Form)。
+  考慮下面函數$\theta_{\mathcal{P}}(w)$
+  \begin{equation}
+    \theta_{\mathcal{P}}(w) = \max_{\alpha, \beta: \alpha_i \geq 0} \mathcal{L}(w, \alpha, \beta)
+  \end{equation}    
+  我們定義原始形式為最小化$\theta_{\mathcal{P}}$
+  即
+  \begin{equation}
+    \min_w \theta_{\mathcal{P}}(w)
+  \end{equation}
+  這看起來有點奇怪，
+  甚至我們會懷疑這是否還等價於原本的問題
+  但我們這樣定義為了造出對偶形式（最大化最小化順序相反）。
+
+  首先我們要說明的是，
+  先前的問題跟這邊的原始形式(Primal Form)是等價的。
+  假如我們選定的某個$w$違反了某個原始形式中的限制條件，
+  即存在$i$使得$g_i(w) > 0$或$h_i(w) \neq 0$，
+  由於$\alpha_i$跟$\beta_i$能夠被調整成任意實數，
+  最大化就相當於將$\alpha_i$或$\beta_i$取無限大而得到無限大。
+  所以
+  \begin{equation}
+    \begin{split}
+      \theta_{\mathcal{P}}(w) 
+      & = \max_{\alpha, \beta, \alpha_i \geq 0} \mathcal{L}(w, \alpha, \beta) \\
+      & = \max_{\alpha, \beta, \alpha_i \geq 0} \left( f(w) + \sum_{i=1}^k \alpha_i g_i(w) + \sum_{i=1}^l \beta_i h_i(w) \right) \\
+      & = \infty
+    \end{split}
+  \end{equation}    
+  相反地，
+  如果給定的$w$滿足所有條件限制，
+  則跟原本的$f$沒有兩樣。
+  按照上面的分析，
+  原始形式可以寫成如下
+  \begin{equation}
+    \theta_{\mathcal{P}}(w) =
+    \left\{ 
+      \begin{array}{l}
+	f(w) \text{ if } w \text{ satisfies primal constraints } \\
+	\infty \text{ otherwize } \\
+      \end{array}
+    \right.	
+  \end{equation}
+  因此我們可以知道，
+  如果所有限制條件都被滿足，
+  則$\theta_{\mathcal{P}}$的最小值跟$f$的最小值是一樣的。
+  如果違反限制條件，
+  則兩個的最小值都會取到正無限大。    
+  因此原始形式是跟先前的問題等價的，
+  並擁有相同的解。
+  即
+  \begin{equation}
+    \min_w \theta_{\mathcal{P}}(w) = \min_w \max_{\alpha, \beta: \alpha_i \geq 0} \mathcal{L}(w, \alpha, \beta)    
+  \end{equation}
+  為了後面說明方便，
+  我們假設原始形式的最佳解為
+  \begin{equation}
+    p^{*} = \min_w \theta_{\mathcal{P}}(w)
+  \end{equation}    
+
+  有了原始形式後，
+  我們來看問題的對偶形式(Dual Form)，
+  並說明在什麼情況下對偶形式跟原始形式有相同的解。
+
+  考慮下面函數
+  \begin{equation}
+    \theta_{\mathcal{D}}(\alpha, \beta) = \min_w \mathcal{L}(w, \alpha, \beta)    
+  \end{equation}    
+  跟之前的$\theta_{\mathcal{P}}$差別在他是對$w$做最小化。
+  我們定義對偶形式如下
+  \begin{equation}
+    \max_{\alpha, \beta: \alpha_i \geq 0} \theta_{\mathcal{D}}(\alpha, \beta) = \max_{\alpha, \beta: \alpha_i \geq 0} \min_w \mathcal{L}(w, \alpha, \beta)    
+  \end{equation}    
+  可以看到，
+  對偶形式跟原始形式的差別只在於最大化跟最小化的順序是相反的。
+  我們假設對偶形式的最佳解為
+  \begin{equation}
+    d^{*} = \max_{\alpha, \beta: \alpha_i \geq 0} \theta_{\mathcal{D}}(w)
+  \end{equation}    
+  則很明顯地，
+  原始形式跟對偶形式有如下的關係
+  \begin{equation}
+    d^{*} = \max_{\alpha, \beta: \alpha_i \geq 0} \min_w \mathcal{L}(w, \alpha, \beta) \leq \min_w \max_{\alpha, \beta: \alpha_i \geq 0} \mathcal{L}(w, \alpha, \beta) = p^{*}
+  \end{equation}
+
+  實際上，
+  在目標函數$f$跟不等限制條件$g_i$都是凸性函數(Convex)，相等限制條件$h_i$是仿射函數(Affine)，
+  且假設不等限制條件$g_i$是有解的(Feasible)(存在$w$使得$\forall i: g_i(w) < 0$)
+  的情況底下，
+  $d^{*}$會等於$p^{*}$。
+  即必定存在$w^{*}$、$\alpha^{*}$、$\beta^{*}$使得
+  $w^{*}$是原始形式的解，
+  $\alpha^{*}$、$\beta^{*}$是對偶形式的解。
+  並且$p^{*} = d^{*} = \mathcal{L}(w^{*}, \alpha^{*}, \beta^{*})$
+
+  上面說的$w^{*}, \alpha^{*}, \beta^{*}$其實會滿足所謂的卡氏條件(Karush-Kuhn-Tucker Condition; KKT Condition)
+  \begin{align}
+    \frac{\partial}{\partial w_i} \mathcal{L}(w^{*}, \alpha^{*}, \beta^{*}) = 0, 1 \leq i \leq n \\
+    \frac{\partial}{\partial \beta_i} \mathcal{L}(w^{*}, \alpha^{*}, \beta^{*}) = 0, 1 \leq i \leq l\\
+    \alpha_i^{*} g_i (w^{*}) = 0, 1 \leq i \leq k \label{kkt_complement}\\
+    g_i(w^{*}) \leq 0, 1 \leq i \leq k \\
+    \alpha^{*} \geq 0, 1 \leq i \leq k  
+  \end{align}
+  在目標函數非凸的時候，
+  卡氏條件只是必要條件而已，
+  但幸運的是，
+  在支撐向量機中目標函數是凸性的，
+  所以只要$w^{*}, \alpha^{*}, \beta^{*}$滿足卡氏條件，
+  它就是原始形式及對偶形式的一組解。
+
+  注意到卡氏條件中一條重要的式子(\ref{kkt_complement})，
+  它又被稱作為卡氏對偶互補條件(KKT Dual Complementarity Condition)。
+  (它隱含說假如$\alpha_i^{*} > 0$，則$g_i(w^{*}) = 0$，
+  對於$\alpha_i^{*} > 0$這樣的條件我們稱為激發的(Active)，
+  因為它式子為等號而非不等號)。
+  它之所以重要是因為在支撐向量機的推導過程中，
+  顯示了相較於全部的樣本點，
+  支撐向量(Support Vectors)的數量是非常少的。
+  並且，
+  我們也可以用它來測試最佳化的收斂程度。
+
+\section{對偶形式}
+  了解了拉氏對偶性後，
+  我們再回來看原本的邊距分類器的問題。
+  \begin{equation}
+    \begin{split}
+      &\min_{w, b} \frac{1}{2} \Vert w \Vert^2  \\
+      \forall i: y_i &( \langle w, x_i \rangle + b \geq 1
+    \end{split}
+  \end{equation}
+  首先我們把上述式子中的條件限制重寫成符合前一節$g_i(w)$的形式
+  \begin{equation}
+    g_i(w) = -y_i (\langle w, x_i \rangle + b) + 1 \leq 0
+  \end{equation}
+  接著我們可以寫出拉氏輔助函數
+  \begin{equation}
+    \mathcal{L}(w, b, \alpha) = \frac{1}{2} \Vert w \Vert^2 - \sum_{i=1}^N \alpha_i (y_i ( \langle w, x_i \rangle + b) - 1) \label{lagrangian} 
+  \end{equation}
+  注意這邊拉氏乘數只有$\alpha_i$而沒有$\beta_i$
+  根據前一節的定義，
+  原始形式為
+  \begin{equation}
+    \min_w \max_{\alpha, \beta: \alpha_i \geq 0} \mathcal{L}(w, b, \alpha)
+  \end{equation}
+  而對偶形式為
+  \begin{equation}
+    \max_{\alpha, \beta: \alpha_i \geq 0} \min_w \mathcal{L}(w, b, \alpha) 
+  \end{equation}
+  因此
+  我們要先利用拉氏乘數法最小化$\mathcal{L}(w, b, \alpha)$。
+  我們分別對$w$及$b$取偏導數為零。
+  得到
+  \begin{align}
+    \nabla_w \mathcal{L}(w, b, \alpha) = w - \sum_{i=1}^N \alpha_i y_i x_i = 0 \label{partial_w}\\
+    \frac{\partial}{\partial b} \mathcal{L}(w, b, \alpha) = \sum_{i=1}^N \alpha_i y^{(i)} = 0 \label{b_equal_0} 
+  \end{align}
+  根據式子(\ref{partial_w})可推出
+  \begin{equation}
+    w = \sum_{i=1}^N \alpha_i y_i x_i \label{sum_equal_w} 
+  \end{equation}
+  我們將式子(\ref{sum_equal_w})代回式子(\ref{lagrangian})可以得到
+  \begin{equation}
+    \mathcal{L}(w, b, \alpha) = \sum_{i=1}^N \alpha_i - \frac{1}{2} \sum_{i, j=1}^N y_i y_j \alpha_i \alpha_j x_i x_j - b \sum_{i=1}^N \alpha_i y_i   
+  \end{equation}
+  但根據式子(\ref{b_equal_0})，
+  上式中最後一項是0
+  所以我們得到
+  \begin{equation}
+    \mathcal{L}(w, b, \alpha) = \sum_{i=1}^N \alpha_i - \frac{1}{2} \sum_{i, j=1}^N y_i y_j \alpha_i \alpha_j x_i x_j    
+  \end{equation}
+  由於我們是調整$w$跟$b$來最小化$\mathcal{L}$而得到上式，
+  所以跟之前的一些限制條件擺在一起就變成了支撐向量機的對偶形式
+  \begin{equation}
+    \begin{split}
+    \max_{\alpha} W(\alpha) = &\sum_{i=1}^N \alpha_i - \frac{1}{2} \sum_{i, j=1} y_i y_j \alpha_i \alpha_j \langle x_i, x_j \rangle \\
+      s.t. &\alpha_i \geq 0, \forall i \\
+      &\sum_{i=1}^N \alpha_i y_i = 0 \\
+    \end{split}
+  \end{equation}
+  而在支撐向量機的問題中，
+  很明顯目標函數是凸性函數，
+  且相等限制條件$h_i$是仿射函數，
+  因此原始形式跟對偶形式有相同的解。
+ 
+  在章節\ref{sec:SMO}中，
+  我們將介紹解對偶形式的最佳化演算法。
+  這邊我們先假設能解出$\alpha$，
+  則我們可以利用式子(\ref{sum_equal_w})可以算出$w^{*}$，
+  有了$w^{*}$，
+  我可以用下列式子算出$b$
+  \begin{equation}
+    b^{*} = - \frac{ \max_{i:y_i = -1} w^{*T} x_i + \min_{i: y_i = 1} w^{*T} x_i }{ 2 }
+  \end{equation}
+
+  在我們進入下一節之前，
+  我們來看一下卡氏對偶互補條件。
+  從卡氏對偶互補條見我們得知只有滿足$y_i ( \langle w, x_i \rangle - \theta) = 1$
+  （即函數邊距(Funtional Margin)剛好等於1)
+  才會有$\alpha_i^{*} > 0$。
+  這相當於圖\ref{fig:support_vectors}中那些落在虛線上的點。
+  因此在圖中的情形就是只有對應虛線上三點的$\alpha_i$大於0。
+  \begin{figure}
+    \begin{center}
+      \begin{tikzpicture}[scale=1.5]
+	  % Draw axes
+	  \draw [<->,thick] (0,5) node (yaxis) [above] {$y$}
+	      |- (6,0) node (xaxis) [right] {$x$};
+	  % Draw two intersecting lines
+	  \draw (1,4) coordinate (b_1) -- (5,1) coordinate (b_2);
+	  \draw[dashed] (1.5,4.5) coordinate (b_1) -- (5.5,1.5) coordinate (b_2);
+	  \draw[dashed] (0.5,3.5) coordinate (b_1) -- (4.5,0.5) coordinate (b_2);
+	  % Calculate the intersection of the lines a_1 -- a_2 and b_1 -- b_2
+	  % and store the coordinate in c.
+	  \fill[red] (4,2.625) circle (2pt);
+	  \fill[red] (2.5,3.75) circle (2pt);
+	  \fill[red] (4,4) circle (2pt);
+	  \fill[blue] (2.5,2) circle (2pt);
+	  \fill[blue] (4,0.5) circle (2pt);
+	  \fill[blue] (2,0.4) circle (2pt);
+      \end{tikzpicture}
+    \end{center}
+    \caption{支持向量}
+    \label{fig:support_vectors}
+  \end{figure}
+  我們稱這些滿足$y_i ( \langle w, x_i \rangle - \theta) = 1$的點為支持向量(Support Vectors)
+
+  在支撐向量機學習演算法裡面，
+  這些$\alpha_i > 0$的點讓我們可以使用一些特別的技巧，
+  像是我們要替一個特徵向量$x$分類的時候，
+  我們把$x$代入$\langle w, x \rangle + b$中來看看值究竟是大於0或小於0。
+  但$\langle w, x \rangle + b$又可以寫成
+  \begin{equation}
+    \begin{split}
+      \langle w, x \rangle + b 
+      &= \left\langle \sum_{i=1}^N \alpha_i y_i x_i, x \right\rangle + b \\
+      &= \sum_{i=1}^N \alpha_i y_i \langle x_i, x \rangle + b \label{inner_product}
+    \end{split}
+  \end{equation}
+  我們可以看到式子(\ref{inner_product})中，
+  實際上要計算預測值都是靠那些$\alpha_i > 0$對應的$\langle x_i, x \rangle$，
+  這樣看起來，
+  我們做預設時都是在靠這些支撐著邊界的點，
+  因此，
+  我們的模型才叫支撐向量機。
+  
+\section{核心映射}
+  在上一節之中，
+  我們看到在算預測值的時候其實只要依靠與支持向量的內積就可以了
+  \begin{equation}
+    \langle w, x \rangle + b = \sum_{i=1}^N \alpha_i y_i \langle x_i, x \rangle + b \label{inner_product}
+  \end{equation}
+  這個性質可以讓我們玩一些小技巧。
+
+  回想我們在做分類或回歸問題時，
+  如果輸入的特徵向量是$x$，
+  我們常常會多加一些額外經過轉換的特徵，
+  譬如$x^2$、$x^3$等試試看是否對問題有正面的幫助，
+  這相當於把原本的內積$\langle x, z \rangle$換成特徵向量某個映射後的內積$\langle \phi(x), \phi(z) \rangle$。
+  這樣加上額外特徵的壞處就是會增加向量維度，
+  兩個向量內積所花費的時間也就增加了。
+  
+  但換個角度想，
+  假如適當選取上述的$\phi$，
+  則$\langle \phi(x), \phi(z) \rangle$其實是可能很輕鬆算出來的。
+  於是我們只要直接算
+  \begin{equation}
+    K(x, z) = \langle \phi(x), \phi(z) \rangle
+  \end{equation}
+  就好了。
+
+  舉例來說，
+  假設$x, z \in \mathfrak{R}^n$，
+  考慮
+  \begin{equation}
+    K(x, z) = (x^T z)^2
+  \end{equation}
+  這個$K(x, z)$整理後可以寫成兩個向量的內積
+  \begin{equation}
+    \begin{split}
+      K(x, z) 
+      & = \left( \sum_{i=1}^n x_i z_i \right) \left( \sum_{j=1}^n x_i z_i \right) \\
+      & = \sum_{i=1}^n \sum_{j=1}^n x_i x_j z_i z_j \\
+      & = \sum_{i, j=1}^n (x_i x_j) (z_i z_j) \\
+    \end{split}
+  \end{equation}
+  因此，
+  假設$n = 3$，
+  則特徵映射$\phi$為
+  \begin{equation}
+    \phi(x) =    	
+    \left[ 
+    x_1 x_1, 
+      x_1 x_2,
+      x_1 x_3,
+      x_2 x_1,
+      x_2 x_2,
+      x_2 x_3,
+      x_3 x_1,
+      x_3 x_2,
+      x_3 x_3
+    \right]^T
+  \end{equation}
+  儘管計算出$\phi(x)$再做內積需要$O(n^2)$的時間，
+  但計算$K(x,z)$只要$O(n)$的時間就可以了。
+
+\section{不可分的情形}
+  前面的章節我們都假設資料是可分的(Separable)，
+  儘管做了核心映射會增加資料可分的可能性，
+  但我們不能被保證每次碰到的資料都是可分的。
+  就算是可分的，
+  也可能因為離群值(Outlier)而找到沒那麼理想的超平面。
+  如圖\ref{fig:outlier}
+  \begin{figure}
+    \begin{center}
+      \subfloat{
+      \begin{tikzpicture}[scale=1]
+	  % Draw axes
+	  \draw [<->,thick] (0,5) node (yaxis) [above] {$y$}
+	      |- (6,0) node (xaxis) [right] {$x$};
+	  % Draw two intersecting lines
+	  \draw (0.5,4.375) coordinate (b_1) -- (5.5,0.625) coordinate (b_2);
+	  % Calculate the intersection of the lines a_1 -- a_2 and b_1 -- b_2
+	  % and store the coordinate in c.
+	  \fill[red] (4,2.625) circle (2pt);
+	  \fill[red] (2.5,3.75) circle (2pt);
+	  \fill[red] (4,4) circle (2pt);
+	  \fill[blue] (2.5,2) circle (2pt);
+	  \fill[blue] (4,0.5) circle (2pt);
+	  \fill[blue] (2,0.4) circle (2pt);
+      \end{tikzpicture}}
+      \subfloat{
+      \begin{tikzpicture}[scale=1]
+	  % Draw axes
+	  \draw [<->,thick] (0,5) node (yaxis) [above] {$y$}
+	      |- (6,0) node (xaxis) [right] {$x$};
+	  % Draw two intersecting lines
+	  \draw (1,5) coordinate (b_1) -- (5,0.5) coordinate (b_2);
+	  % Calculate the intersection of the lines a_1 -- a_2 and b_1 -- b_2
+	  % and store the coordinate in c.
+	  \fill[red] (4,2.625) circle (2pt);
+	  \fill[red] (2.5,3.75) circle (2pt);
+	  \fill[red] (4,4) circle (2pt);
+	  \fill[blue] (0.5,5) circle (2pt);
+	  \fill[blue] (2.5,2) circle (2pt);
+	  \fill[blue] (4,0.5) circle (2pt);
+	  \fill[blue] (2,0.4) circle (2pt);
+      \end{tikzpicture}}
+    \end{center}
+    \caption{支持向量}
+    \label{fig:outlier}
+  \end{figure}
+  我們採用$L_1$規範化($L_1$ Regularization)的方式來重寫我們的原始形式(Primal Form)，
+  引進鬆弛變數(Slack Variable)$\xi_i$到原本的支撐向量機的限制及目標函數中，
+  \begin{equation}
+    \begin{split}
+      &\min_{w,b} \frac{1}{2} \Vert w \Vert^2 + C \sum_{i=1}^N \xi_i \\
+      \text{s.t.} y_i &(\langle w, x_i \rangle + b) \geq 1 - \xi_i \\
+      &\xi_i \geq 0
+    \end{split}
+  \end{equation}
+  這種寫法讓函數邊距(Functional Margin)有可能小於1，
+  但如果一個函數邊距為$1 - \xi_i$，
+  則我們在目標函數必須付出$C \xi_i$的代價。
+  這邊的$C$在讓邊距變小以及多半資料點的函數邊距至少為1兩個目標之間做取捨。
+
+  要得到對偶形式，
+  一樣我們要先定義拉氏輔助函數
+  \begin{equation}
+    \mathcal{L}(w, b, \xi, \alpha, r) = \frac{1}{2} \langle w, w \rangle + C \sum_{i=1}^N \xi_i - \sum_{i=1}^N \alpha_i [y_i (\langle w, x \rangle + b) - 1 + \xi_i ] - \sum_{i=1}^N r_i \xi_i
+  \end{equation}
+  其中$\alpha_i$跟$r_i$是拉氏乘數。
+  經過類似之前的討論之後，
+  我們便可以得到對偶形式。
+  唯一要注意的是卡氏對偶互補條件改變成
+  \begin{align}
+    \alpha_i = 0 \Rightarrow y_i (\langle w, x_i \rangle + b) \geq 1 \\
+    \alpha_i = C \Rightarrow y_i (\langle w, x_i \rangle + b) \leq 1 \\
+    0 < \alpha_i < C \Rightarrow y_i (\langle w, x_i \rangle + b) = 1
+  \end{align}
+  加入$L_1$規範化後的對偶形式如下
+  \begin{equation}
+    \begin{split}
+      \max_{\alpha} W(\alpha) = &\sum_{i=1}^N \alpha_i - \frac{1}{2} \sum_{i,j=1}^N y_i y_j \alpha_i \alpha_j \langle x_i, x_j \rangle \\
+      \text{s.t.} &0 \leq \alpha_i \leq C \\
+      &\sum_{i=1}^N \alpha_i y_i = 0
+    \end{split}
+  \end{equation}
+  令人意外的是，
+  儘管加入$L_1$規範化，
+  對偶形式只有從限制$\alpha_i \geq 0$，
+  改變成$0 \leq \alpha_i \leq C$。
+  至於如何解對偶形式，
+  跟之前可分的情形一樣，
+  都是依靠下一節介紹的循序最小化方法。
+
+\section{循序最小化方法(Sequential Minimal Optimization)} \label{sec:SMO}
+  循序最小化方法(Sequential Minimal Optimization; SMO)是由普拉特氏(Platt)在1998年提出\cite{Microsoft98SMO}，
+  用來解決支撐向量機的對偶形式。
+  為什麼要從對偶形式下手？
+  前面的章節已經提出幾個對偶形式的優點，
+  像是可以使用核心映射。
+  除此之外，
+  算支撐向量機的參數相當於是解一個非常龐大的二次規劃(Quadratic Programming)。
+  如果我們無法拆解這個龐大的二次規劃問題，
+  那我們就無法拓展到比較大的訓練集，
+  而對偶形式有一些好的性質讓我們能夠把這個龐大的二次規劃拆成比較小的二次規劃，
+  再用分析的方法解這些比較小的二次規劃。
+
+  循序最小化方法就是這樣的一個方法，
+  不僅可以將原本龐大的問題拆解，
+  概念上也比較簡單（亦即程式比較好寫）。
+  循序最小化方法概念上其實很像梯度下降法(Gradient Decent)，
+  只是一次要更新兩個變數而非一個。
+  回想支撐向量機的式子，
+  \begin{equation}
+    \begin{split}
+      \max_{\alpha} W(\alpha) = &\sum_{i=1}^N \alpha_i - \frac{1}{2} \sum_{i,j=1}^N y_i y_j \alpha_i \alpha_j \langle x_i, x_j \rangle \\
+      \text{s.t. } &\forall k, 0 \leq \alpha_k \leq C \\
+      &\sum_{k=1}^N \alpha_k y_k = 0
+    \end{split}
+  \end{equation}
+  如果我們有一組滿足限制的$\alpha_i$，
+  我們不可能只變動$\alpha_i$而固定其他的$\alpha_j$，
+  這是因為
+  \begin{equation}
+    \begin{split}
+      & \sum_{k=1}^N \alpha_k y_k = 0 \label{eq:sum_to_zero} \\
+      & \Rightarrow \alpha_i y_i = - \sum_{j \neq i} \alpha_j y_j
+    \end{split}
+  \end{equation}
+  也就是$\alpha_i$是被唯一決定的。
+
+  因此我們必須一次挑選兩個變數，
+  整個循序最小化方法看起來會如演算法\ref{alg:over_simplified_smo}，
+  \begin{algorithm}
+    \caption{循序最小化方法}
+    \label{alg:over_simplified_smo}
+    \begin{algorithmic}[1]
+      \REPEAT
+	\STATE 使用啟發子(Heuristic)來選取$\alpha_i$跟$\alpha_j$，這兩個$\alpha$會讓更新的差盡量大
+	\STATE 固定其他$\alpha$、調整$\alpha_i$跟$\alpha_j$來讓$W(\alpha)$最大化
+      \UNTIL{收斂}
+    \end{algorithmic}
+  \end{algorithm}
+  其中測試收斂是用卡氏條件是否都在邊界值加上某個誤差$tol$內。
+
+  剩下的問題是，
+  我們選好$\alpha_i$跟$\alpha_j$後要怎麼固定其他$\alpha$來最大化$W(\alpha)$。
+  不失一般性，
+  這邊假設我們是要變動$\alpha_i$跟$\alpha_j$並固定剩下的$\alpha$。
+  則根據式子(\ref{eq:sum_to_zero})，
+  我們有
+  \begin{equation}
+    \alpha_i y_i + \alpha_j y_j = - \sum_{k \neq i, j} \alpha_k y_k
+  \end{equation}
+  由於右半邊是定值，
+  我們可以寫成
+  \begin{equation}
+    \alpha_i y_i + \alpha_j y_j = \zeta
+  \end{equation}
+  其中$\zeta$為常數。
+
+  由這個式子，
+  我們可以畫出圖\ref{fig:smo_line_constraint}。
+  \begin{figure}
+    \begin{center}
+      \begin{tikzpicture}[scale=1.2]
+	  % Draw axes
+	  \draw [<->,thick] (0,5) node (yaxis) [above] {$\alpha_1$}
+	      |- (5,0) node (xaxis) [right] {$\alpha_2$};
+	  % Draw two intersecting lines
+	  \draw (0.5,0) coordinate (b_1) -- (4.5,4) coordinate (b_2);
+	  \draw (0,4.5) coordinate (b_1) -- (4.5,4.5) coordinate (b_2);
+	  \draw (4.5,4.5) coordinate (b_1) -- (4.5,0) coordinate (b_2);
+	  \draw[dashed] (0,4) coordinate (b_1) -- (4.5,4) coordinate (b_2);
+	  \draw (4,3.8) node {$\alpha_i y_i + \alpha_j y_j = \zeta$};
+	  \draw (4.6, 0.1) node {$C$};
+	  \draw (0.1, 4.6) node {$C$};
+	  \draw (0.1, 4.1) node {$H$};
+	  \draw (0.1, 0.13) node {$L$};
+	  % Calculate the intersection of the lines a_1 -- a_2 and b_1 -- b_2
+	  % and store the coordinate in c.
+      \end{tikzpicture}
+    \end{center}
+    \caption{分析法}
+    \label{fig:smo_line_constraint}
+  \end{figure}
+  明顯地，
+  $\alpha_i$跟$\alpha_j$必定落在圖中的$[0, C] \times [0, C]$範圍中的$\alpha_i y_i + \alpha_j y_j = \zeta$那條線上。
+  也就是說，
+  $\alpha_j$一定落在圖中的$L$跟$H$之間($L \leq \alpha_j \leq H$)。
+  不然$(\alpha_i, \alpha_j)$沒辦法同時滿足以上限制。
+  要算出一般的$L$跟$H$如下
+  \begin{itemize}
+    \item If $y_i \neq y_j$, $L = \max(0, \alpha_j - \alpha_i), H = \min(C, C + \alpha_j - \alpha_i)$ 
+    \item If $y_i = y_j$, $L = \max(0, \alpha_i + \alpha_j - C), H = \min(C, \alpha_i + \alpha_j)$
+  \end{itemize}
+
+  另外，由於$\alpha_i + \alpha_j = \zeta$，
+  所以$\alpha_i$可以寫成$\alpha_j$的函數
+  \begin{equation}
+    \alpha_i = (\zeta - \alpha_j y_j) y_i
+  \end{equation}
+  也就是說$W(\alpha_i, \alpha_j, \mathbf{\alpha})$是$\alpha_j$的二次式
+  \begin{equation}
+    \begin{split}
+      W(\alpha_i, \alpha_j, \mathbf{\alpha}) 
+      = W((\zeta - \alpha_j y_j y_i), \alpha_j, \mathbf{\alpha})
+      = a \alpha_j^2 + b \alpha_j + c
+    \end{split}
+  \end{equation}
+  由於$W(\alpha_i, \alpha_j, \mathbf{\alpha})$是單變數的二次式，
+  也就是凸性函數。
+  因此，
+  容易驗證如果求出的最大值在$[0, C] \times [0, C]$內，
+  則
+  \begin{equation}
+    \alpha_j = \alpha_j - \frac{y_j (E_i - E_j)}{\eta}
+  \end{equation}
+  其中
+  \begin{align}
+    E_k = f(x_k) - y_k \\
+    \eta = 2 \langle x_i, x_j \rangle - \langle x_i, x_i \rangle - \langle x_j, x_j \rangle
+  \end{align}
+  如果分析求出的最大值$\alpha_j$在$[0, C] \times [0, C]$的範圍外，
+  則$\alpha_j$的值就是邊界值
+  如下 
+  \begin{equation}
+    \alpha_j = 
+    \left\{
+    \begin{array}{l}
+      H,\text{ if } \alpha_j > H \\
+      \alpha_j, \text{ if } L \leq \alpha_j \leq H \\
+      L, \text{ if } \alpha_j < L \\
+    \end{array}
+    \right.
+  \end{equation}
+  (這邊的$L$跟$H$分別對應圖\ref{fig:smo_line_constraint})
+  當我們解出$\alpha_j$後，
+  就可以用
+  \begin{equation}
+    \alpha_i = \alpha_i + y_i y_j (\alpha_j^{(old)} - \alpha_j)
+  \end{equation}
+  解出$\alpha_i$
+
+  在更新$\alpha_i$跟$\alpha_j$之後，
+  也就是說我們要利用上面更新過的$\alpha$算出滿足下列卡氏條件的$b$
+  \begin{align}
+    \alpha_i = \Rightarrow y_i (\langle w, x_i \rangle + b) \geq 1 \\
+    \alpha_i = C \Rightarrow y_i (\langle w, x_i \rangle + b) \leq 1 \\
+    0 < \alpha_i < C \Rightarrow y_i (\langle w, x_i \rangle + b) = 1 
+  \end{align}
+  要算出合法的$b$總共有三種狀況要考量。
+  首先，
+  如果經過更新後，
+  $\alpha_i$不在邊界上($0 < \alpha_i < C$)
+  則下面的$b_1$可以作為我們的$b$
+  \begin{equation}
+    b_1 = b - E_i - y_i (\alpha_i - \alpha_i^{(old)}) \langle x_i, x_i \rangle - y_j (\alpha_j - \alpha_j^{(old)}) \langle x_i, x_j \rangle
+  \end{equation}
+  不然，
+  如果我們有$0 < \alpha_j < C$，
+  則下面的$b_2$是個合法的$b$
+  \begin{equation}
+    b_2 = b - E_j - y_i (\alpha_i - \alpha_i^{(old)} \langle x_i, x_j \rangle - y_j (\alpha_j - \alpha_j^{(old)}) \langle x_j, x_j \rangle
+  \end{equation}
+  最後， 
+  如果上面條件都不滿足($\alpha_i = 0$或$\alpha_i = C$且$\alpha_j = 0$或$\alpha_j = C$)，
+  則任意在$b_1$跟$b_2$中間的值當$b$都能滿足卡氏條件。
+  所以整體決定$b$的條件如下。
+  \begin{equation}
+    b = 
+    \left\{
+      \begin{array}{l}
+	b_1, \text{ if } 0 < \alpha_i < C \\
+	b_2, \text{ if } 0 < \alpha_j < C \\
+	\frac{(b_1 + b_2)}{2}, \text{ otherwise} \\
+      \end{array}
+    \right.
+  \end{equation}
+  最後，
+  我們在演算法\ref{alg:simplified_smo}中給出一個簡化版的循序最小化方法
+  (注意這個簡化版由於挑$i, j$是用隨機的方式挑，所以不是保證對所有資料都能收斂，但對大部分資料已足夠，
+  在\cite{Microsoft98SMO}中敘述了完整的循序最小化方法。
+  \begin{algorithmic}[1]
+    \label{alg:simplified_smo}
+    \REQUIRE $C$, tol, max\_passes, $Z = \lbrace (x_i, y_i) \rbrace_{i=1}^N$
+    \ENSURE 輸出：$\alpha$, $b$
+    \STATE 設定$\alpha_i = 0$, $b = 0$
+    \STATE 設定passes $= 0$
+    \WHILE{passes $<$ max\_passes}
+      \STATE num\_changed\_alphas = 0
+      \FOR{$i = 1, 2, \dots, m$}
+	\STATE 計算$E_i = f(x_i) - y_i$
+	\IF{ ($y_i E_i < -\text{tol}$ and $\alpha_i < C$) or ($y_i E_i > \text{tol}$ and $\alpha_i > 0$) }
+	  \STATE 隨機選取$j \neq i$
+	  \STATE 計算$E_j = f(x_j) - y_j$
+	  \STATE 計算$L$跟$H$
+	  \IF{$L = H$}
+	    \STATE 繼續下一個循環
+	  \ENDIF
+	  \STATE 計算$\eta$
+	  \IF{$\eta \geq 0$}
+	    \STATE 繼續下一個循環
+	  \ENDIF
+	  \STATE 計算新的$\alpha_j$
+	  \IF{$\vert \alpha_j - \alpha_j^{(old)} \vert < 10^{-5}$}
+	    \STATE 繼續下一個循環
+	  \ENDIF
+	  \STATE 計算$\alpha_i$的值
+	  \STATE 計算$b_1$,$b_2$
+	  \STATE 計算$b$
+	  \STATE num\_changed\_alphas = num\_changed\_alphas + 1
+	\ENDIF
+      \ENDFOR
+    \ENDWHILE
+    \IF{num\_changed\_alphas = 0}
+      \STATE passes = passes + 1
+    \ELSE
+      \STATE passes = 0
+    \ENDIF
+  \end{algorithmic}
+
+\section{本章總結}
+  本章詳細說明了支撐向量機學習演算法的推導，
+  包括了一般教學文件中比較沒提到的循序最小化方法，
+  對於了解下一章要說明的結構化支撐向量機有極大的幫助。
+

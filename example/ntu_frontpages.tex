@@ -1,0 +1,31 @@
+\NTUtitlepage  % 產生論文封面
+
+\newpage
+\setcounter{page}{1}
+\pagenumbering{roman}
+
+\NTUoralpage  % 產生口試委員會審定書
+
+\mydoublespacing
+%\begin{acknowledgement} %誌謝
+   %請在這裡寫您的誌謝辭 
+%\end{acknowledgement}
+
+\begin{zhAbstract}  %中文摘要
+  中文摘要
+\end{zhAbstract}
+
+{
+%\zhKaiFont
+\mysinglespacing\selectfont
+\tableofcontents %目錄
+
+\listoffigures  %圖目錄
+
+\listoftables  %表目錄
+\par
+}
+
+\newpage
+\setcounter{page}{1}
+\pagenumbering{arabic}

@@ -1,0 +1,157 @@
+\NeedsTeXFormat{LaTeX2e}[1994/06/01]
+\ProvidesPackage{ntuthesis}[2008/07/01 v1.0 NTU thesis format]
+\usepackage[verbose,tmargin=3cm,bmargin=3cm,lmargin=3cm,rmargin=3cm,footskip=1.27cm,a4paper]{geometry}
+\usepackage{times}
+\usepackage{type1cm}
+
+\newcommand{\enThesisType}{Master}
+\newcommand{\zhThesisType}{碩士}
+\newcommand{\zhDraftName}{}
+
+\DeclareOption{master}{\renewcommand{\enThesisType}{Master} \renewcommand{\zhThesisType}{碩士}}
+\DeclareOption{phd}{\renewcommand{\enThesisType}{Doctoral} \renewcommand{\zhThesisType}{博士}}
+\DeclareOption{draft}{\renewcommand{\zhDraftName}{ (初稿) }}
+
+\newcommand{\zhKaiFont}{\CJKfamily{bkai}}  %設定中文楷體字型
+\newcommand{\zhMingFont}{\CJKfamily{bsmi}}  %設定中文明體字型
+
+\newcommand{\mybaselinestretch}{2}  %行距 1.5 倍 + 20%, (約為 double space
+\renewcommand{\baselinestretch}{\mybaselinestretch}  % 論文行距預設值
+
+\newcommand{\mysinglespacing}{\renewcommand{\baselinestretch}{1.18}}
+\newcommand{\myonehalfspacing}{\renewcommand{\baselinestretch}{1.5}}
+\newcommand{\mydoublespacing}{\renewcommand{\baselinestretch}{2}}
+
+\renewcommand{\listfigurename}{圖目錄}
+\renewcommand{\listtablename}{表目錄}
+\renewcommand{\bibname}{參考文獻}
+
+\newcommand{\zhCollegeName}{電機資訊學院}
+\newcommand{\zhDepartmentName}{電機工程學系}
+\newcommand{\enCollegeName}{College of Electrical Engineering and Computer Science}
+\newcommand{\enDepartmentName}{Department of Electrical Engineering}
+\newcommand{\enTitle}{Research of Keroro Alien Invadation}
+\newcommand{\zhTitle}{ケロロ 軍曹外星人入侵研究}
+\newcommand{\authorZhName}{王大明}  %作者中文姓名
+\newcommand{\authorEnName}{Da-ming Wang}  %作者英文姓名
+\newcommand{\authorStudentID}{R123456789}  %作者學號
+\newcommand{\advisorZhName}{日向冬樹}%指導教授中文姓名
+\newcommand{\advisorEnName}{Fuyuki Hinata}  %指導教授英文姓名
+\newcommand{\rocYear}{九十七}  %中華民國紀年年份
+\newcommand{\zhMonth}{六}  %中文月份
+\newcommand{\enYear}{2008}  %公元紀年
+\newcommand{\enMonth}{June}  %英文月份
+\newcommand{\oralDate}{97年7月1日}  %口試日期
+
+\newenvironment{acknowledgement}{\newpage \begin{center}
+	\LARGE \zhKaiFont 誌謝
+\end{center}
+\addcontentsline{toc}{chapter}{誌謝}
+\vspace{12pt}
+\par
+\CJKindent
+}{}
+
+\newenvironment{enAbstract}{\newpage \begin{center}
+	\Large Abstract
+\end{center}
+\addcontentsline{toc}{chapter}{英文摘要}
+\vspace{12pt}
+\par
+\noindent 
+}{}
+
+\newenvironment{zhAbstract}{\newpage \begin{center}
+	\LARGE \zhKaiFont 摘要
+\end{center}
+\addcontentsline{toc}{chapter}{中文摘要}
+\vspace{12pt}
+\par
+\CJKindent
+}{}
+
+\newcommand{\NTUtitlepage}{\begin{titlepage}%
+	\myonehalfspacing
+	\vspace{1cm}
+	\zhKaiFont
+	\begin{center}
+		{%\Large
+		\fontsize{18pt}{22pt}\selectfont
+		國立臺灣大學\zhCollegeName{}\zhDepartmentName{} \\ \zhThesisType{}論文 \zhDraftName{} \\}
+		\vspace{1em}
+		{
+		\fontsize{14pt}{10pt}\selectfont
+		\enDepartmentName{} \\
+		\enCollegeName{} }\\
+		{%\large
+		\fontsize{16pt}{20pt}\selectfont
+		National Taiwan University \\
+		\enThesisType{} Thesis \\ }
+		\par
+		\vfill
+		{%\Large 
+		\fontsize{18pt}{22pt}\selectfont
+		\zhTitle \\[12pt]}
+		%\myonehalfspacing
+		{\Large \enTitle \par}
+		\vfill
+		%\myonehalfspacing
+		{\Large \authorZhName \\ \authorEnName \\
+		\vspace{1.5em}
+		指導教授：\advisorZhName{} 教授 \\ Advisor: \advisorEnName , Ph.D. \\
+		\vspace{2cm}
+		中華民國\rocYear 年\zhMonth 月 \\
+		\enMonth , \enYear }
+		\par
+	\end{center}
+\end{titlepage}
+}
+
+\newcommand{\NTUoralpage}{\newpage
+\addcontentsline{toc}{chapter}{口試委員會審定書}
+\vspace{1cm}
+\begin{center}
+	\mysinglespacing\selectfont
+	\huge
+	\zhKaiFont
+	國立臺灣大學\zhThesisType{}學位論文 \\ {\fontsize{26pt}{18pt}\selectfont 口試委員會審定書}
+	\vspace{10pt}
+
+	{%\LARGE
+	\fontsize{20pt}{20pt}\selectfont
+	\zhTitle \\ \enTitle}
+	\vspace{12pt}
+\end{center}
+
+{%\mysinglespacing\selectfont
+\fontsize{16pt}{12pt}\selectfont \zhKaiFont
+\CJKindent 本論文係\authorZhName{}君 (\authorStudentID{}) 在國立臺灣大學\zhDepartmentName{}完成之\zhThesisType{}學位論文，於民國 \oralDate{} 承下列考試委員審查通過及口試及格，特此證明}
+\par
+\vfill
+{\mysinglespacing\selectfont
+\fontsize{16pt}{16pt}\selectfont \zhKaiFont
+口試委員：
+
+\hspace{66pt} \underline{\hspace{17.88em} (簽名)} 
+
+\hspace{10em} (指導教授)
+
+\hspace{66pt} \underline{\hspace{8.825em}} \hspace{2.5em} \underline{\hspace{8.825em}}
+\vspace{20pt}
+
+\hspace{66pt} \underline{\hspace{8.825em}} \hspace{2.5em} \underline{\hspace{8.825em}}
+\vspace{20pt}
+
+\hspace{66pt} \underline{\hspace{8.825em}} \hspace{2.5em} \underline{\hspace{8.825em}}
+\vspace{20pt}
+
+\hspace{66pt} \underline{\hspace{8.825em}} \hspace{2.5em} \underline{\hspace{8.825em}}
+\vspace{20pt}
+
+系主任、所長 \underline{\hspace{13em} (簽名)} 
+\vspace*{20pt}
+}
+}
+
+\ExecuteOptions{master}
+\ProcessOptions*

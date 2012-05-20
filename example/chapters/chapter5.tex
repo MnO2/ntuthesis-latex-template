@@ -1,0 +1,688 @@
+本章第一節將介紹本論文的實驗架構，
+包括TIMIT語料庫、
+語音特徵前端處理、
+隱藏式馬可夫模型的訓練、
+多層式感知器的訓練、
+以及結構化支撐向量機的訓練。
+
+在本章第二節則呈現實驗結果，
+並對實驗結果做一些探討、分析比較。
+
+\section{實驗基礎架構}
+  \subsection{實驗語料}
+  \label{subsec:corpus_setting}
+  本論文使用的語料為TIMIT語料庫(The DARPA TIMIT Acoustic-Phonetic Continuous Speech Corpus，簡稱TIMIT)。
+  TIMIT語料庫是美國國防部(Defense Advanced Research Projects Agency; DARPA)為了評估自動語音辨識系統而選用的一套語料庫，
+  由朗讀句子的語音所組成。
+  這些被朗讀的句子是由德州儀器(Texas Instruments; TI)、
+  麻省理工學院(Massachusetts Institute of Technology; MIT)、
+  以及史丹佛研究機構(Stanford Research Institute; SRI)共同設計。
+  而語料庫是德州儀器請人朗讀並錄製、
+  麻省理工學院人工轉寫。
+  語料庫的名字便是從此而來(TI + MIT = TIMIT)。
+
+  TIMIT語料庫總共有6300個句子，
+  這些句子是由來自美國主要八個不同口音(Dialect)地區的630個語者，
+  每人講10個句子錄製而成的。
+  語料庫中詳細的男女、地區分佈請見表\ref{tab:timit_dialect_distribution}
+  \begin{table}
+    \begin{center}
+    \scalebox{0.7}
+    {
+      \begin{tabular}{|c|c|c|c|}
+	\hline 方言地區 & 男性人數 & 女性人數 & 總共人數 \\
+	\hline 1 & 31 (63\%) & 18 (27\%) & 49 (8\%) \\
+	\hline 2 & 71 (70\%) & 31 (30\%) & 102 (16\%) \\
+	\hline 3 & 79 (67\%) & 23 (23\%) & 102 (16\%) \\
+	\hline 4 & 69 (69\%) & 31 (31\%) & 100 (16\%) \\
+	\hline 5 & 62 (63\%) & 36 (47\%) & 98 (16\%) \\
+	\hline 6 & 30 (65\%) & 16 (35\%) & 46 (7\%) \\
+	\hline 7 & 74 (74\%) & 26 (26\%) & 100 (16\%) \\
+	\hline 8 & 22 (67\%) & 11 (33\%) & 33 (5\%) \\
+	\hline 8 & 438 (70\%) & 192 (30\%) & 630 (100\%) \\
+	\hline
+      \end{tabular}
+    }
+    \caption{TIMIT語料庫中的語者口音分佈}
+    \label{tab:timit_dialect_distribution}
+    \end{center}
+  \end{table}
+  至於每個語者朗讀的10個句子可以分成下面的類別
+  \begin{itemize}
+    \item 2句方言句(SA): 主要是為了凸顯不同地區語者的口音不同，每位語者唸的都是同樣的兩句方言句。
+    \item 5句音素平衡(Phonetically Balanced)語句(SX): 主要是為了讓每個音素都出現，每個人唸的五句都是從總數為450句的音素平衡語句中挑出來的。
+    \item 3句實際語句(SI): 這些語句是從現有的文字語料庫亂數挑出來的，像是布朗文字語料庫(Brown Corpus)，總共有1890句。每位語者從1890句中挑三句唸。
+  \end{itemize}
+
+  在本實驗中不論是訓練或評估都不使用SA部分的句子，
+  這是因為在文獻\cite{KaifuLee}中敘述使用了SA部份的句子會導致評估出來的結果會異常地高。
+  因此，
+  扣掉SA部份的句子後，
+  訓練語料集總共有3696句(462個語者)，
+  測試語料集總共有192個句子
+  (我們使用TIMIT核心測試語料集，共有24個語者，每人唸5句SX句、3句SI句)。
+
+  \begin{table}
+    \begin{center}
+    \scalebox{0.7}
+    {
+      \begin{tabular}{|c|c|c|c|c|c|c|c|}
+       \hline 音素 & 範例 & 音素 & 範例 & 音素 & 範例 & 音素 & 範例 \\
+       \hline b & bee & d & day & g & gay & p & pea \\
+       \hline t & tea & k & key & dx & muddy, dirty & q & bat \\
+       \hline jh & joke & ch & choke & s & sea & sh & she \\
+       \hline z & zone & zh & azure & f & fin & th & thin\\
+       \hline v & van & dh & then & m & mom & n & noon \\
+       \hline ng & sing & em & bottom & en & button & eng & washington\\
+       \hline nx & winner & l & lay & r & ray & w & way \\
+       \hline y & yacht & hh & hay & hv & ahead & el & bottle \\
+       \hline iy & beet & ih & bit & eh & bet & ey & bait \\
+       \hline ae & bat & aa & bott & aw & bout & ay & bite\\
+       \hline ah & but & ao & bought & oy & boy & ow & boat\\
+       \hline uh & book & uw & boot & ux & toot & er & bird\\
+       \hline ax & about & ix & debit & axr & butter & ax-h & suspect\\
+       \hline pau & pause & epi & silence & h\#  & silence & \#h & silence  \\
+       \hline pcl & (unvoiced sil) & tcl & (unvoiced sil) & kcl & (unvoiced sil) & qcl & (unvoiced sil)  \\
+       \hline vcl & (vioced sil) & bcl & (voiced sil) & dcl & (voiced sil) & gcl & (voiced sil) \\
+       \hline
+      \end{tabular}
+    }
+    \caption{TIMIT音素集}
+    \label{tab:timit_phoneset}
+    \end{center}
+  \end{table}
+  
+  \begin{table}
+    \begin{center}
+    \scalebox{0.7}
+    {
+      \begin{tabular}{|c|}
+	\hline sil, cl, vcl, epi \\
+	\hline el, l \\
+	\hline en, n \\
+	\hline sh, zh \\
+	\hline ao, aa \\
+	\hline ih, ix \\
+	\hline ah, ax \\
+	\hline
+      \end{tabular}
+    }
+    \caption{七組被視為相同的群組}
+    \label{tab:timit_confusion}
+    \end{center}
+  \end{table}
+  TIMIT音素集共有64個音素(請見表\ref{tab:timit_phoneset})，
+  按照前人做音素辨識(Phone Recognition)的作法\cite{KaifuLee}，
+  我們移除所有的喉音(Glottal Stops)、
+  再將剩下的一些相似音合併到剩下48種音素(請見表\ref{tab:timit_48phoneme})。
+  我們建立模型的時候便只有替這48種音素建模。
+  並且在評估時，
+  這48個音素中的某些音素被視做一樣(請見表\ref{tab:timit_confusion})，
+  即使A音素被辨識成B音素也不視做錯誤。
+  因此，
+  音素辨識結果總共由39種音素所組成。
+  \begin{table}
+    \begin{center}
+    \scalebox{0.7} 
+    {
+      \begin{tabular}{|c|c|c|c|c|c|}
+      \hline 音素 & 實現範例 & 同位音素 & 音素 & 實現範例 & 同位音素 \\ 
+      \hline iy & b\underline{ea}t &  & en & butt\underline{on} &  \\ 
+      \hline ih & b\underline{i}t &  & ng & si\underline{ng} & eng \\ 
+      \hline eh & b\underline{e}t &  & ch & \underline{ch}urch &  \\ 
+      \hline ae & b\underline{a}t &  & jh & j\underline{ud}ge &  \\ 
+      \hline ix & ros\underline{es} &  & dh & \underline{th}ey &  \\ 
+      \hline ax & th\underline{e} &  & b & \underline{b}ob &  \\ 
+      \hline ah & b\underline{u}tt &  & d & \underline{d}ad &  \\ 
+      \hline uw & b\underline{oo}t & ux & dx & (bu\underline{tt}er) &  \\ 
+      \hline uh & b\underline{oo}k &  & g & \underline{g}ag &  \\ 
+      \hline ao & ab\underline{ou}t &  & p & \underline{p}op &  \\ 
+      \hline aa & c\underline{o}t &  & t & \underline{t}ot &  \\ 
+      \hline ey & b\underline{ai}t &  & k & \underline{k}ick &  \\ 
+      \hline ay & b\underline{i}te &  & z & \underline{z}oo &  \\ 
+      \hline oy & b\underline{oy} &  & zh & mea\underline{s}ure &  \\ 
+      \hline aw & b\underline{oug}h &  & v & \underline{v}ery &  \\ 
+      \hline ow & b\underline{oa}t &  & f & \underline{f}ief &  \\ 
+      \hline l & \underline{l}ed &  & th & \underline{th}ief &  \\ 
+      \hline el & bott\underline{le} &  & s & \underline{s}is &  \\ 
+      \hline r & \underline{r}ed &  & sh & \underline{sh}oe &  \\ 
+      \hline y & \underline{y}et &  & hh & \underline{h}ay & hv \\ 
+      \hline w & \underline{w}et &  & cl(sil) & (unvoiced closure) & pcl, tcl, kcl, qcl \\ 
+      \hline er & b\underline{ir}d & axr & vcl(sil) & (voiced closure) & bcl, dcl, gcl \\ 
+      \hline m & \underline{m}om & em & epi(sil) & (epinthetic closure) &  \\ 
+      \hline n & \underline{n}on & nx & sil & (silence) & h\#, \#h, pau \\ 
+      \hline
+      \end{tabular} 
+    }
+    \end{center}
+    \caption{實際被使用的48種音素}
+    \label{tab:timit_48phoneme}
+  \end{table}
+
+  \subsection{前端處理}
+  \label{subsec:feature_extraction}
+  本論文使用梅爾倒頻譜係數(Mel-Frequency Cepstrum Coefficient; MFCC) \cite{Huang} 
+  及感知線性預測係數(Perceptual Linear Prediction; PLP)\cite{HermanskyPLP}作為語音訊號的特徵參數,
+  以下將分別簡介梅爾倒頻譜係數與感知線性預測係數抽取的流程。
+
+  梅爾倒頻譜係數抽取流程如圖\ref{fig:mfcc_flow}所示，
+  將語音資料切割成一連串部分重疊的音框(10ms為跳躍距離、25ms的漢明窗)，
+  每個音框中抽出13維的梅爾倒頻譜係數特徵，
+  再加上其一階與二階的時間軸導數(Time Derivatices)
+  所形成的39維聲學特徵向量所組成。
+  其中13維的梅爾倒頻譜係數是由40個梅爾頻譜濾波器組(Filter Banks)
+  的輸出經餘弦轉換求得(範圍從64 Hz至8k Hz)。
+  同時，
+  為了降低通道效應對語音辨識的影響，
+  在實驗系統中，
+  亦使用倒頻譜平均消去法(Ceptral Mean Substraction; CMS)\cite{FuruiCMS}
+
+  感知線性預測係數抽取流程則如圖\ref{fig:plp_flow}所示，
+  基本的流程跟梅爾倒頻譜係數的抽取流程一樣，
+  差別在於梅爾倒頻譜係數是在時域(Time Domain)裡面做預強(Pre-emphasis)，
+  而感知線性預測係數是在頻域(Frequency Domain)裡面做預強。
+  且感知線性預測係數用不重疊臨界頻帶來取代重疊的梅爾三角濾波，
+  並用開三次方根的音強響度轉換來取代取對數。
+  最後做自迴歸分析(Autoregressive Coefficient)來得到13維的感知線性預測係數。
+  同樣地，
+  我們可以加上一階與二街的時間軸導數來得到39維的感知線性預測係數。
+  並用倒頻譜平均消去法來降低通道效應。
+  \begin{figure}
+    \subfloat[MFCC特徵抽取流程]{
+      \includegraphics[scale=0.6]{images/mfcc_flow.pdf}
+      \label{fig:mfcc_flow}
+    } \\
+    \subfloat[PLP特徵抽取流程]{
+      \includegraphics[scale=0.6]{images/plp_flow.pdf}
+      \label{fig:plp_flow}
+    }
+    \label{fig:feature_extraction_flow}
+    \caption{特徵抽取流程}
+  \end{figure}
+
+  \subsection{訓練與辨識系統}
+  本論文的實驗可分為三個部份，各由不同工具完成：
+  隱藏式馬可夫模型訓練工具為劍橋大學的隱藏式馬可夫程式集(HTK)\cite{HTK};
+  多層式感知器的訓練我們使用快克網(QuickNet)\cite{QuickNet};
+  結構化支撐向量機我們則使用$SVM^{struct}$\cite{SVMHMM};
+
+  \subsection{基礎實驗}
+  為了證明結構化支撐向量機能拿來做語音辨識，
+  並得到不錯的結果，
+  我們這邊基礎實驗挑選的比較對象為隱藏式馬可夫模型(Hidden Markov Model; HMM)與串接式系統(Tandem System)。
+  其實串接式系統也可以被視作輸入特徵為音素事後機率的隱藏式馬可夫模型，
+  因此，
+  也可以說我們這邊就是在把結構化支撐向量機跟隱藏式馬可夫模型做比較而已。
+
+  我們比較的方式就是將隱藏式馬可夫模型與結構化支撐向量機分別對TIMIT語料庫做無設限之音素辨識(Free Phone Decoding)
+  (即無辭典與無語言模型，每個音素轉移到任何音素的機率是均勻分佈的)，
+  對辨識結果比較它們的音素正確率(Phone Accuracy)。
+  為什麼只做到音素辨識而不做小字彙或大字彙辨識呢？
+  因為結構化支撐向量機模型非常複雜，
+  還未想出如何做小字彙或大字彙辨識。
+  本論文先嘗試做音素辨識，
+  未來看看有沒有辦法將架構修改成適用於小字彙或大字彙辨識。
+
+  以下我們分別來看隱藏式馬可夫模型、串接式系統在本實驗中是如何建立的。
+  在下一章節我們再來看結構化支撐向量機如何被建立。
+  
+  \subsubsection{隱藏式馬可夫模型}
+    本實驗中依照章節\ref{subsec:corpus_setting}中的說明，
+    先將TIMIT語料庫原有的64個音素映到48個音素(所有的人工轉寫都要做轉換)。
+    再分別對這48個音素建立隱藏式馬可夫模型。
+
+    我們在實驗中使用的隱藏式馬可夫模型原型為從左到右的單音素連續分佈隱藏式馬可夫模型(Left-to-Right Continuous Mono-phone HMM)，
+    每個音素模型共有五個狀態，
+    第一個狀態跟第五個狀態是方便我們串接馬可夫模型用的起始狀態跟結束狀態，
+    只能跳轉到下一個狀態。
+    從第二到第四個狀態則是真正有作用的狀態、
+    可以跳轉自己或下一個狀態。
+    每個狀態最初有一個高斯混合數。
+    在一個高斯混合數的情況下，
+    經過20次期望值最大化(Expectation Maximization; EM)的迭代之後(我們使用最大相似度估測法)，
+    開始增加高斯混合數，
+    高斯混合數的增加順序為:
+    \begin{equation*}
+      1 \rightarrow 2 \rightarrow 4 \rightarrow 8 \rightarrow 16 \rightarrow 32
+    \end{equation*}
+    每次增加混合數之後，
+    都會再做20次的迭代，
+    才繼續增加至下一個數量的混合數，
+
+    至於輸入的特徵向量我們使用章節\ref{subsec:feature_extraction}的方式對語音訊號抽取梅爾倒頻譜係數與感知線性預測係數，
+    包括上面的訓練過程、以及不限制音素辨識、評估結果，
+    整個過程都是使用隱藏式馬可夫程式集(HTK)完成。
+
+  \subsubsection{串接式系統}
+    串接式系統中的隱藏式馬可夫模型部份跟前面說的設定都一樣。 
+    都是一樣要先映到48個音素後再照正常流程走。
+    唯一不同的是我們要用訓練語料集訓練一個多層感知器，
+    來輸出一個音框屬於某個音素的事後機率。
+    可以將這樣的過程視作為將特徵向量做一個轉換。
+    下面我們說明我們的多層感知器的設定。
+
+    多層感知器的層數我們使用輸入層、隱藏層、輸出層三層結構，
+    中間的隱藏層(Hidden Layer)我們設為1000個節點。
+    輸入的維數為351維，
+    這是因為我們預測這個音框的音素時，
+    使用前後四個音框當作特徵，
+    而且每個音框的特徵向量有39維，
+    因此$39 \times 9 = 351$。
+    至於輸出則是48維，
+    對應於我們要預測的48個不同音素的事後機率。
+
+    我們使用全部的訓練語料集來訓練多層感知器，
+    並用這個訓練好的多層感知器將輸入的梅爾倒頻譜係數或感知線性預測係數轉換成事後機率，
+    在評估的時候，
+    也是用同一個多層感知器將特徵向量轉換成事後機率。
+    在做主成份分析(Principal Component Analysis; PCA)的時候，
+    我們按照慣例，
+    將事後機率向量降維到特徵值(Eigen Value)和超過95\%的維數。
+    在本實驗中，為37維。
+
+  \subsection{結構化支撐向量機的建立}
+    前一章中我們只說明了結構化支撐向量機的框架(Framework)，
+    但在實做音素辨識的時候要如何定義$\Psi(x, y)$我們並沒有提到。
+    在這一節我們設定一個具有隱藏式馬可夫模型結構的$\Psi(x, y)$的定義。
+    
+    我們所謂具有隱藏式馬可夫模型結構並不是指結構化支撐向量機剛好具有隱藏式馬可夫模型中的$a_{ij}$、$b_j(o_t)$等數值。
+    而是隨機變數之間假設獨立的關係是一致的。
+    如果對條件隨機域(Conditional Random Fields; CRF)熟悉的話，
+    回想從隱藏式馬可夫模型推導至條件隨機域時，
+    我們是把轉移機率、放射機率等寫成特徵函數(Feature Function)的係數，
+    如下
+    \begin{equation}
+      \begin{split}
+      p(y, x) 
+      & = \prod_{t=1}^T p(y_t | y_{t-1}) p(x_y | y_t) \\
+      & = \frac{1}{Z} \exp \left\lbrace \sum_{t} \sum_{i,j \in S} \lambda_{ij} \delta(y_t = i) \delta(y_{t-1} = j) + \sum_{t} \sum_{i \in S} \sum_{o \in O_w} \mu_{oi} \delta(y_t = i) \delta(x_t = o) \right\rbrace \\
+      & = \frac{1}{Z} \exp \left\lbrace \sum_t \sum_k \lambda_k f_k(y_t, y_{t-1}, x_t) \right\rbrace \\
+      \end{split}
+    \end{equation}
+    其中$x$代表觀察序列、$y$表示狀態序列(不過這邊狀態序列必須是可見的(Observable)，相當於標籤)。
+    而$\lambda_{ij} = \log a_{ji} = \log p(y_t = i | y_{t-1} = j)$、
+    $\mu_{oi} = \log b_i(o) = \log p(x_t = o | y_t = i)$、
+    $Z = 1$，並且我們稱$f$為特徵函數
+
+    我們這裡定義$\Psi(x, y)$其實跟定義條件隨機域中的特徵函數是同樣的意思。
+    是定義了某種隨機變數間獨立假設的關係。
+
+    為了用簡潔的公式寫出來，
+    我們考慮張量(Tensor Product)
+    \begin{equation}
+      \otimes: \mathbb{R}^D \times \mathbb{R}^K \rightarrow \mathbb{R}^{D \dot K}, (a \otimes b)_{i + (j-1) D} \equiv a_i \cdot b_j
+    \end{equation}
+    並定義一個輔助函數。
+    \begin{equation}
+      \Lambda^{c}(y) \equiv (\delta(y_1, y), \delta(y_2, y), \ldots, \delta(y_K, y)) \in \lbrace 0, 1 \rbrace^K
+    \end{equation}
+    則我們定義的$\Psi(x,y)$可以用下面的公式表示
+    \begin{equation}
+      \Psi(x, y) = 
+      \left( 
+	\begin{array}{l}
+	  \sum_{t=1}^T \Phi(x^t) \otimes \Lambda^{c} (y^t) \\
+	  \eta \sum_{t=1}^{T-1} \Lambda^{c} (y^t) \otimes \Lambda^{c} (y^{(t+1)})
+	\end{array} 
+      \right)
+    \end{equation}
+    其中$\Phi(x^t$表示第$t$個時間的輸入特徵向量，在本實驗就是MFCC、PLP，
+    $\sum_{t=1}^T \Phi(x^t) \otimes \Lambda^{c} (y^t)$這個相當於前面條件隨機域中抽取放射關係的特徵函數，
+    而$\sum_{t=1}^{T-1} \Lambda^{c} (y^t) \otimes \Lambda^{c} (y^{(t+1)})$則相當於前面條件隨機域中抽取轉移關係的特徵函數。
+    $\eta$是調整放射機率與轉移機率之間比重的參數。
+
+    \begin{figure}
+        \begin{center}
+        \includegraphics[scale=0.5]{images/psi_example.pdf}
+        \end{center}
+        \caption{$\Psi(x, y)$的一個簡化範例}
+        \label{fig:psi_example}
+    \end{figure}
+    舉例來講，
+    假設系統中總共有3個不同的音素標籤$\lbrace A, B, C \rbrace$，
+    而一個訓練樣本如圖\ref{fig:psi_example}
+    （注意到音素跟特徵向量是對齊到音框的層級)
+   
+    則上面定義的$\Psi(x, y)$計算了轉移次數(Transition Count)跟放射次數(Emission Count)，
+    如果計算出範例中的轉移次數矩陣$A$與放射次數矩陣$B$
+    (A對應index 0、B對應index 1、C對應index 3、並設$\eta = 1$、$\Phi(x^t) = x^t$)
+    \begin{equation}
+        A = 
+        \left(
+        \begin{array}{ccc}
+            0 & 1 & 0 \\
+            1 & 1 & 0 \\
+            0 & 0 & 0 \\
+        \end{array}
+        \right)
+        ,
+        B = 
+        \left(
+        \begin{array}{cc}
+            3.2 & 5 \\
+            3.7 & 6.4 \\
+            0 & 0 \\
+        \end{array}
+        \right)
+    \end{equation}
+    則$\Psi(x,y)$就是將$A$跟$B$的列一一串接起來成為一個向量
+    \begin{equation}
+      \Psi(x,y) = 
+      \left(
+	    \begin{array}{ccccccccccccccc}
+        0 & 1 & 0 & 1 & 1 & 0 & 0 & 0 & 0 & 3.2 & 5 & 3.7 & 6.4 & 0 & 0 \\
+	    \end{array}
+      \right)
+    \end{equation}
+    
+    有了特徵函數$\Psi(x,y)$，
+    扮演前面條件隨機域中$\lambda_k$角色的其實就是支撐向量機中的$w$，
+    是我們需要去訓練出來的參數。
+    注意到$w$對應的數值不是剛好對應隱藏式馬可夫模型中的轉移機率與放射機率的數值，
+    就像條件隨機域中的$\lambda_k$也並不是剛好對應轉移機率與放射機率的數值，
+    只是同一種關係中的係數而已。
+    在圖$\ref{fig:svm_hmm}$中大致畫出了這樣的關係。
+
+    \begin{figure}
+      \begin{center}
+	\includegraphics[scale=0.5]{images/svm-hmm.pdf}
+      \end{center}
+      \caption{對應隱藏式馬可夫模型結構的結構化支撐向量機}
+      \label{fig:svm_hmm}
+    \end{figure}
+
+    將結構化支撐向量機作成隱藏式馬可夫模型的結構讓我們能夠解決序列標籤或序列分段的問題，
+    並且這樣的結構讓我們能夠用維特比解碼演算法(Viterbi Algorithm)來有效率地找違反最多的限制(Most Violated Constraint)，
+    結構化支撐向量機框架中所需要被證明的特性，
+    像是活性限制(Active Constraint)的數量有多項式上界等在這個架構下也能被滿足
+
+    至於風險函數$\Delta(y, \hat{y})$我們則定義
+    \begin{equation}
+      \Delta(y, \hat{y}) = \sum_{t=1}^T \delta(y^t, \hat{y}^t) 
+    \end{equation}
+    這個風險函數是音素錯誤率的一個上限(Upper Bound)。
+    為什麼要用這樣的風險函數而不用音素錯誤率當風險函數呢？
+    因為這樣的風險函數具有可拆解的特性，
+    讓我們在結構化支撐向量機中將邊距乘上風險函數的時候容易解出來。
+    如果用音素錯誤率的話就會讓情況變複雜、數學不好推導。
+
+    有了以上的所有定義，
+    我們就能按照定義的結構訓練一個具有隱藏式馬可夫模型結構的結構化支撐向量機。
+    整個訓練過程跟訓練隱藏式馬可夫模型一樣，
+    都先把64個音素映到48個音素(修改人工轉寫)，
+    再將給定的特徵向量和它對應的人工轉寫餵給定義好的結構化支撐向量機即可。
+
+  \subsection{系統評估標準}
+    既然我們是在做音素辨識，
+    我們評估系統表現的時候當然是用音素正確率(Phone Accuracy)為標準。
+
+    依照文獻資料，
+    正確率計算的方式是用下列的公式來計算。
+    \begin{align}
+      H = N - D - S \\
+      Corr = \frac{H}{N} \times 100\% \\
+      Acc = \frac{H - I}{N} \times 100\% 
+    \end{align}
+    其中H(Hit; 命中)是代表辨識結果與正確答案相同的部份，
+    D(Deletion; 遺失)是正確答案中有出現但辨識結果沒出現的部份，
+    S(Substitution; 取代)是辨識結果中與正確答案中相異的部份，
+    I(Insertion; 插入)是正確答案中沒出現但辨識結果中有出現的部份，
+    N(Number)是正確答案的總數(如在word中就是指總詞數、這邊當然就是指總音素數)。
+    D、S、I是由計算編輯距離(Edit Distance)而來，
+    計算方式如演算法\ref{alg:edit_distance}所示。
+    \begin{algorithm}
+      \begin{algorithmic}[1]
+	\FOR{$i = 0, 1 \dots, m$}
+	  \STATE $d[i, 0] \leftarrow i$
+	\ENDFOR
+	\FOR{$j = 0, 1 \dots, n$}
+	  \STATE $d[0, j] \leftarrow j$
+	\ENDFOR
+	\FOR{$i = 1, 2, \dots, m$}
+	  \FOR{$j = 1, 2, \dots, n$} 
+	    \IF{$a[i] = b[j]$}
+	      \STATE $\text{cost} \leftarrow 0$
+	    \ELSE
+	      \STATE $\text{cost} \leftarrow 1$
+	    \ENDIF
+	  \ENDFOR
+	  \STATE $d[i,j] \leftarrow \min(d[i-1,j]+1, d[i,j-1]+1, d[i-1,j-1] + \text{cost})$
+	\ENDFOR
+      \end{algorithmic}
+      \caption{編輯距離之計算方式}
+      \label{alg:edit_distance}
+    \end{algorithm}
+
+\section{結果分析}
+  \subsection{初步實驗結果}
+    首先來看基礎實驗的結果(表\ref{tab:baseline}、圖\ref{fig:baseline})，
+    也就是單音素的隱藏式馬可夫模型以及串接式系統的音素正確率(Phone Accuray)。
+    表\ref{tab:baseline}中的方法一列代表隱藏式馬可夫模型的輸入特徵是什麼，
+    其中MFCC跟PLP分別代表梅爾倒頻譜係數聲學特徵與感知線性預測係數聲學特徵。
+    而MLP-MFCC以及MLP-PLP則代表輸入特徵是經過多層感知器轉換過後的梅爾倒譜係數聲學特徵和感知線性預測係數聲學特徵，
+    也就是不做主成份分析(PCA)降維的串接式系統。
+    至於PCA-37-MLP-MFCC以及PCA-37-MLP-PLP則是做完PCA降維的系統，
+    也就是完整做完串接式系統。
+
+    至於橫軸中的Flat Start與Init By Label代表的是兩種不同的訓練模式，
+    由於TIMIT語料庫的人工轉寫只有標籤到音素的時間邊界，
+    而沒有標籤到音框，
+    所以這邊是仿照一般流程先直接對音素標籤序列直接做期望值最大化(Flat Start)來訓練出一套隱藏式馬可夫模型。
+    有了這套隱藏式馬可夫模型後，
+    就用這套模型去對音框序列做強迫對齊(Forced Alignment)好取得音框的邊界。
+    再用有音框邊界的訓練資料訓練一套新的隱藏式馬可夫模型(Init By Label)。
+    因此正常情況下，
+    用Init By Label訓練的方式跑出來的辨識率應該比Flat Start高。
+    這和我們得到的實驗數據符合。
+
+    除此之外，
+    我們也可以看到做了多層感知器轉換後音素正確率就可以從62\%, 63\%提高到約68\%, 69\%。
+    做完PCA降維之後可以再提昇約絕對的1\%到音素正確率70\%，
+    大致符合以往做串接式系統所觀察到的情形。
+    
+    \newpage
+    \begin{table}[htb]
+      \begin{center}
+	\scalebox{0.8} 
+	{
+	  \begin{tabular}{|c|c|c|c|c|c|c|}
+	  \hline
+	  方法 & MFCC & PLP & MLP-MFCC & MLP-PLP & PCA-37-MLP-MFCC & PCA-37-MLP-PLP \\
+	  \hline 
+	  HMM(Flat Start) & 62.47\% & 62.69\%  & 68.77\% & 69.25\% & 70.19\% & 70.26\% \\ 
+	  \hline 
+	  HMM(Init By Label) & \textcolor{red}{63.26\%} & 62.91\%  & 69.26\% & 69.50\% & 70.30\% & \textcolor{red}{70.42\%} \\
+	  \hline
+	  \end{tabular} 
+	}
+      \end{center}
+      \caption{基礎實驗結果 -- 音素正確率}
+      \label{tab:baseline}
+    \end{table}
+
+    \begin{figure}
+      \begin{center}
+	\includegraphics[scale=1.0]{images/hmm.pdf}
+      \end{center}
+      \caption{基礎實驗結果 -- 音素正確率}
+      \label{fig:baseline}
+    \end{figure}
+  
+    \newpage
+
+    另外，
+    雖然照前人的經驗使用MFCC或PLP當作聲學特徵得出來辨識結果是差不多，
+    在本實驗雖然得到的數據也相差不大，
+    但多數情況PLP似乎能夠得到比MFCC好一些些的結果。
+    
+    接下來我們來看圖\ref{fig:svm_struct_dual_order1}中結構化支撐向量機的結果。
+    縱軸代表支撐向量機中的鬆弛向量(Slack Variable)，
+    我們採用倍數的方式增加鬆弛向量。
+    注意在做比較的時候，
+    要在使用同類特徵的隱藏式馬可夫模型及結構化支撐向量機間比較才算公平。
+    也就是要注意MLP-MFCC、MLP-PLP、PCA-37-MLP-MFCC、PCA-37-MLP-PLP要跟串接式系統比較才公平。
+    
+    首先我們看表\ref{tab:svm_struct_dual_order1}及圖\ref{fig:svm_struct_dual_order1}，
+    這邊列出的結果是使用線性核心、用對偶問題算出參數的結構化支撐向量機，
+    並且這個結構化支撐向量機的$\Psi(x, y)$跟一般在做隱藏式馬可夫模型時候一樣，
+    只有是做一階馬可夫假設(First-Order Markov)。
+    可以看到當聲學特徵為MFCC或PLP的時候，
+    結構化支撐向量機的表現並不理想，
+    最好的音素正確率也才51\%左右。
+    相較之下，
+    同樣用MFCC跟PLP當聲學特徵的連續分佈隱藏馬可夫模型就有63\%左右的正確率。
+    也就是結構化支撐向量機在這邊輸了絕對11\%的正確率。
+    為了了解結構化支撐向量機的好壞，
+    我們試著跑過只有一個高斯混合的隱藏式馬可夫模型，
+    得到的音素正確率大概是50\%左右。
+    也就是說，
+    當聲學特徵是MFCC或PLP時，
+    結構化支撐向量機的能力只差不多是單高斯混合的隱藏式馬可夫模型的能力而已。
+    雖然看起來是可以運作，
+    但我們並不能接受這樣的正確率。
+
+    有趣的是，
+    當我們將用多層感知器轉換過的聲學特徵，
+    也就是音素事後機率當作聲學特徵餵進結構化支撐向量機的時候，
+    音素辨識率卻提升到57\%以上，
+    甚至調整鬆弛變量後可以到達71.7\%，
+    在絕對音素正確率上超過基礎實驗中串接式系統的70.42\%將近1\%。
+    而且跟串接式系統不同的是，
+    
+    \newpage
+
+    \begin{table}[htb]
+      \begin{center}
+	\scalebox{0.75} 
+	{
+	  \begin{tabular}{|c|c|c|c|c|c|c|}
+	  \hline
+	  鬆弛變量 & MFCC & PLP & MLP-MFCC & MLP-PLP & PCA-37-MLP-MFCC & PCA-37-MLP-PLP \\
+	  \hline 
+	  1 & 38.87\% & 39.08\% & 57.40\% & 57.57\% & 56.71\% & 56.79\% \\ 
+	  \hline 
+	  10 & 46.55\% & 44.81\% & 67.74\% & 67.65\% & 67.13\% & 67.20\% \\
+	  \hline 
+	  100 & 49.74\% & 49.65\% &70.86\% & 70.89\% & 70.18\% & 70.19\% \\
+	  \hline 
+	  1000 & \textcolor{red}{51.29\%} & 51.22\% & 71.71\% & \textcolor{red}{71.75\%} & 71.29\% & 71.32\% \\
+	  \hline
+	  \end{tabular} 
+	}
+      \end{center}
+      \caption{結構化支撐向量機(對偶問題、線性核心、一階馬可夫)}
+      \label{tab:svm_struct_dual_order1}
+    \end{table}
+
+    \begin{figure}
+      \begin{center}
+	\includegraphics[scale=1.0]{images/svm-struct-dual-order1.pdf}
+      \end{center}
+      \caption{結構化支撐向量機(對偶問題、線性核心、一階馬可夫)}
+      \label{fig:svm_struct_dual_order1}
+    \end{figure}
+
+    \newpage
+    串接式系統最好的表現是在做完PCA降維之後，
+    但結構化支撐向量機最好地表現卻是在做PCA降維之前。
+    PCA降維之後反而降低了結構化支撐向量機的表現。
+
+    顯然比起隱藏式馬可夫模型，
+    結構化支撐向量機比較不在意高維度下帶來雜訊的影響。
+
+    為了驗證解主要問題與解對偶問題除了速度上的差別之外，
+    表現上相差無幾，
+    我們也做了用主要問題來解參數的實驗。
+    請看表\ref{tab:svm_struct_primal_order1}及圖\ref{fig:svm_struct_primal_order1}。
+    同樣我們都是用隱藏式馬可夫模型架構的結構化支撐向量機，
+    並做一階馬可夫假設。
+    雖然我們沒有將表\ref{tab:svm_struct_dual_order1}中的所有參數都跑完，
+    不過可以看到有跑出來的部份跟解對偶問題的數值都相差不多，
+    幾乎可以說相同。
+
+    另外，
+    為了測試將一階馬可夫假設加強到二階馬可夫(Second-Order Markov)假設的時候對於表現是否有影響，
+    我們還稍微修改了$\Psi(x,y)$的結構讓它可以考慮二階馬可夫假設。
+    結果如表\ref{tab:svm_struct_dual_order2}及圖\ref{fig:svm_struct_dual_order2}。
+    可以看到當聲學特徵是使用MFCC或PLP的時候。
+    使用二階馬可夫假設不但進步很小甚至有可能會退步。
+    但使用多層感知器轉換過後，
+    二階馬可夫模型就可以帶來不錯的進步，
+    當鬆弛向量等於10的時候就可以跑出70.07\%的正確率。
+    不過由於計算量的增加，
+    就沒有繼續跑鬆弛變量等於100或1000的實驗。
+    最後，
+    我們在圖\ref{fig:comparison}中給出實驗中最好結果的比較。
+    \newpage
+
+    \begin{table}[htb] 
+      \begin{center}
+	\scalebox{0.75} 
+	{
+	  \begin{tabular}{|c|c|c|c|c|c|c|}
+	  \hline
+	  鬆弛變量 & MFCC & PLP & MLP-MFCC & MLP-PLP & PCA-37-MLP-MFCC & PCA-37-MLP-PLP \\
+	  \hline 
+	  1 & 38.77\% & 37.03\% & 57.54\% & 57.33\% & 56.35\% & 56.07\% \\ 
+	  \hline 
+	  10 & \textcolor{red}{46.13\%} & 44.71\% & \textcolor{red}{67.73\%} & 67.48\% & 67.19\% & 66.98\% \\
+	  \hline
+	  \end{tabular} 
+	}
+      \end{center}
+      \caption{結構化支撐向量機(主要問題、線性核心、一階馬可夫)}
+      \label{tab:svm_struct_primal_order1}
+    \end{table}
+    
+    \begin{figure}
+      \begin{center}
+	\includegraphics[scale=1.0]{images/svm-struct-primal-order1.pdf}
+      \end{center}
+      \caption{結構化支撐向量機(主要問題、線性核心、一階馬可夫)}
+      \label{fig:svm_struct_primal_order1}
+    \end{figure}
+
+    \newpage
+
+    \begin{table}[htb]
+      \begin{center}
+	\scalebox{0.75} 
+	{
+	  \begin{tabular}{|c|c|c|c|c|c|c|}
+	  \hline
+	  鬆弛變量 & MFCC & PLP & MLP-MFCC & MLP-PLP & PCA-37-MLP-MFCC & PCA-37-MLP-PLP \\
+	  \hline 
+	  1 & 39.03\% & 39.19\% & 64.43\% & 64.25\% & 63.65\% & 63.75\% \\ 
+	  \hline 
+	  10 & \textcolor{red}{46.38\%} & 44.61\% & 69.94\% & \textcolor{red}{70.07\%} & 69.84\% & 69.91\% \\
+	  \hline
+	  \end{tabular} 
+	}
+      \end{center}
+      \caption{結構化支撐向量機(對偶問題、線性核心、二階馬可夫)}
+      \label{tab:svm_struct_dual_order2}
+    \end{table}
+    
+    \begin{figure}
+      \begin{center}
+	\includegraphics[scale=1.0]{images/svm-struct-dual-order2.pdf}
+      \end{center}
+      \caption{結構化支撐向量機(對偶問題、線性核心、二階馬可夫)}
+      \label{fig:svm_struct_dual_order2}
+    \end{figure}
+
+    \newpage
+
+    \begin{figure}
+      \begin{center}
+	\includegraphics[scale=0.8]{images/comparison.pdf}
+      \end{center}
+      \caption{實驗中最好的結果比較}
+      \label{fig:comparison}
+    \end{figure}
+
+\section{本章總結}
+  根據本章的實驗，
+  結構化支撐向量機在TIMIT語料庫上做音素辨識的表現勝過串接式系統。
+  但在使用傳統的特徵向量像是梅爾倒頻譜係數與感知線性預測係數時卻表現不如預期。
+  有試著做過分析，但至今還不清楚是什麼樣的原因造成使用傳統特徵向量時辨識率低落。
